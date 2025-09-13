@@ -6,16 +6,16 @@ from tqdm import tqdm
 
 class Constants:
     """Defines the fundamental physical constants."""
-    E_MASS = 9.10938356e-31  # Electron mass in kg
+    E_MASS = 9.10938356e-31   # Electron mass in kg
     E_CHARGE = 1.60217662e-19 # Electron charge in C
-    C_LIGHT = 299792458      # Speed of light in m/s
+    C_LIGHT = 299792458       # Speed of light in m/s
 
 class SimParameters:
     """Defines the parameters for this specific simulation run."""
     MAX_STEPS = 538957
-    TUBE_LENGTH = 1000.0       # 1000 meters
-    BATTERY_VOLTAGE = 550000.0 # Voltage chosen to produce clear relativistic effects
-    DT = 1e-11                 # Time step in seconds for the integration
+    TUBE_LENGTH = 1000.0      # 1000 meters
+    BATTERY_VOLTAGE = 550000.0# Voltage chosen to produce clear relativistic effects
+    DT = 1e-11                # Time step in seconds for the integration
 
 # --- Core Simulation Objects ---
 
@@ -39,7 +39,7 @@ class ConductionTube:
 def run_simulation():
     """
     Runs the core simulation loop, evolving the electron's state
-    according to the RDU Equation of Motion.
+    [span_5](start_span)according to the RDU Equation of Motion[span_5](end_span).
     """
     electron = Electron()
     tube = ConductionTube(SimParameters.TUBE_LENGTH, SimParameters.BATTERY_VOLTAGE)
@@ -48,7 +48,7 @@ def run_simulation():
     history = {'position': [], 'velocity': []}
 
     print("Running RDU Kinetic Inhibition simulation...")
-    for _ in tqdm(range(SimParameters.MAX_STEPS)):
+    for _ in tqdm(range(SimParameters.MAX_STEPS), desc="Simulation Progress"):
         # Stop the simulation if the electron exits the tube
         if electron.pos >= tube.length:
             break
@@ -61,8 +61,10 @@ def run_simulation():
         # Calculate the Kinetic Inhibition factor based on current velocity
         v_sq = electron.vel**2
         c_sq = Constants.C_LIGHT**2
-        kinetic_inhibition_factor = (1 - v_sq / c_sq)
-
+        
+        # Ensure the factor does not become negative due to numerical precision errors
+        kinetic_inhibition_factor = max(0, (1 - v_sq / c_sq))
+        
         # Apply the inhibition factor to get the effective force
         effective_force = tube.propulsive_force * kinetic_inhibition_factor
 
@@ -70,15 +72,13 @@ def run_simulation():
         electron.acc = effective_force / electron.mass
         electron.vel += electron.acc * SimParameters.DT
         electron.pos += electron.vel * SimParameters.DT
-
+        
     return history
 
 # --- Plotting Function ---
 
 def plot_results(data):
-    """
-    Visualizes the simulation results and saves the plot to a file.
-    """
+    """Visualizes the simulation results and saves the plot to a file."""
     pos_m = np.array(data['position'])
     vel_ms = np.array(data['velocity'])
 
@@ -101,7 +101,7 @@ def plot_results(data):
     ax.grid(True, linestyle=':', alpha=0.4)
 
     # Save the figure to the specified file for the LaTeX document
-    output_filename = 'kinetic_inhibition_plot.png'
+    output_filename = 'RDU_Kinetic_Inhibition_Plot.png'
     plt.savefig(output_filename, bbox_inches='tight', pad_inches=0.1, dpi=300)
     print(f"\nPlot successfully saved as '{output_filename}'")
 
