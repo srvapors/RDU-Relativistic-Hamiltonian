@@ -1,0 +1,118 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+
+# --- Simulation Configuration ---
+
+class Constants:
+    """Defines the fundamental physical constants."""
+    E_MASS = 9.10938356e-31  # Electron mass in kg
+    E_CHARGE = 1.60217662e-19 # Electron charge in C
+    C_LIGHT = 299792458      # Speed of light in m/s
+
+class SimParameters:
+    """Defines the parameters for this specific simulation run."""
+    MAX_STEPS = 538957
+    TUBE_LENGTH = 1000.0       # 1000 meters
+    BATTERY_VOLTAGE = 550000.0 # Voltage chosen to produce clear relativistic effects
+    DT = 1e-11                 # Time step in seconds for the integration
+
+# --- Core Simulation Objects ---
+
+class Electron:
+    """Represents the state of a single electron."""
+    def __init__(self):
+        self.mass = Constants.E_MASS
+        self.pos = 0.0
+        self.vel = 0.0
+        self.acc = 0.0
+
+class ConductionTube:
+    """Represents the environment providing a constant propulsive force."""
+    def __init__(self, length, voltage):
+        self.length = length
+        self.electric_field = voltage / length
+        self.propulsive_force = self.electric_field * Constants.E_CHARGE
+
+# --- Main Simulation Loop ---
+
+def run_simulation():
+    """
+    Runs the core simulation loop, evolving the electron's state
+    according to the RDU Equation of Motion.
+    """
+    electron = Electron()
+    tube = ConductionTube(SimParameters.TUBE_LENGTH, SimParameters.BATTERY_VOLTAGE)
+
+    # Data lists to store the history of the electron's motion
+    history = {'position': [], 'velocity': []}
+
+    print("Running RDU Kinetic Inhibition simulation...")
+    for _ in tqdm(range(SimParameters.MAX_STEPS)):
+        # Stop the simulation if the electron exits the tube
+        if electron.pos >= tube.length:
+            break
+
+        # Record the current state
+        history['position'].append(electron.pos)
+        history['velocity'].append(electron.vel)
+
+        # --- RDU Core Physics ---
+        # Calculate the Kinetic Inhibition factor based on current velocity
+        v_sq = electron.vel**2
+        c_sq = Constants.C_LIGHT**2
+        kinetic_inhibition_factor = (1 - v_sq / c_sq)
+
+        # Apply the inhibition factor to get the effective force
+        effective_force = tube.propulsive_force * kinetic_inhibition_factor
+
+        # Update kinematics using simple Euler integration
+        electron.acc = effective_force / electron.mass
+        electron.vel += electron.acc * SimParameters.DT
+        electron.pos += electron.vel * SimParameters.DT
+
+    return history
+
+# --- Plotting Function ---
+
+def plot_results(data):
+    """
+    Visualizes the simulation results and saves the plot to a file.
+    """
+    pos_m = np.array(data['position'])
+    vel_ms = np.array(data['velocity'])
+
+    plt.style.use('dark_background')
+    fig, ax = plt.subplots(figsize=(12, 7))
+
+    # Plot the electron's velocity as a function of position
+    ax.plot(pos_m, vel_ms, color='cyan', linewidth=2.5, label='Simulated Electron Velocity')
+
+    # Plot the speed of light as a horizontal line for reference
+    ax.axhline(y=Constants.C_LIGHT, color='red', linestyle='--', linewidth=2, label='Speed of Light (c)')
+
+    # Formatting the plot to match a professional, dark-themed style
+    ax.set_title('RDU: Electron Velocity with Kinetic Inhibition', fontsize=18, pad=20)
+    ax.set_xlabel('Distance Along Tube (meters)', fontsize=14)
+    ax.set_ylabel('Electron Velocity (m/s)', fontsize=14)
+    ax.set_xlim(0, SimParameters.TUBE_LENGTH)
+    ax.tick_params(axis='both', which='major', labelsize=12)
+    ax.legend(fontsize=12)
+    ax.grid(True, linestyle=':', alpha=0.4)
+
+    # Save the figure to the specified file for the LaTeX document
+    output_filename = 'kinetic_inhibition_plot.png'
+    plt.savefig(output_filename, bbox_inches='tight', pad_inches=0.1, dpi=300)
+    print(f"\nPlot successfully saved as '{output_filename}'")
+
+    # Display the plot
+    plt.show()
+
+# --- Main Execution Block ---
+
+if __name__ == "__main__":
+    simulation_data = run_simulation()
+    if simulation_data['position']: # Check if simulation produced data
+        plot_results(simulation_data)
+    else:
+        print("Simulation did not produce data to plot.")
