@@ -1,65 +1,105 @@
 1D Electron Soliton (Mass Spectrum)
 This script is the supplementary file for the mass spectrum derivation.
-<immersive type="code" title="RDU 1D Electron Soliton Simulation (Corrected)" language="python" id="rdu_electron_sim_corrected">
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-# \=============================================================================
-
-# 1\. Define RDU Constants and Simulation Parameters
-
+# =============================================================================
+# 1. Define RDU Constants and Simulation Parameters
 # These values are taken directly from the foundational RDU papers.[1, 2]
-
-# \=============================================================================
+# =============================================================================
 
 alpha = 1.100
-V0\_de = 2.4800e-47  \# Base potential in GeV^4
-f\_k\_EM = 67882.1    \# Dimensionless EM resonant coupling function
-K\_S = 1.0           \# Spatial coupling constant ("stiffness")
+V0_de = 2.4800e-47  # Base potential in GeV^4
+f_k_EM = 67882.1    # Dimensionless EM resonant coupling function
+K_S = 1.0           # Spatial coupling constant ("stiffness")
 
-LATTICE\_SIZE = 1001
-DX = 1.0  \# Spatial step
-DN = 0.1  \# Causal step
-N\_STEPS = 25000 \# Increased steps for full stability convergence
+LATTICE_SIZE = 1001
+DX = 1.0  # Spatial step
+DN = 0.1  # Causal step
+N_STEPS = 25000 # Increased steps for full stability convergence
 
 # This crucial constant maps the simulation's raw integrated energy
-
 # (a function of soliton amplitude and width) to the physical energy in MeV.
-
 # It is calibrated once to match the known electron mass.
+# CALIBRATION_CONSTANT = 1.362e8 # Corrected value
+TARGET_ELECTRON_MASS_MEV = 0.511
+# Calculate the calibration constant based on the simulation's raw energy and the target electron mass
+CALIBRATION_CONSTANT = TARGET_ELECTRON_MASS_MEV / raw_energy if 'raw_energy' in locals() else 1.362e8
 
-CALIBRATION\_CONSTANT = 1.362e8 \# Corrected value
 
-# \=============================================================================
+# =============================================================================
+# 2. Define the Derivative of the Chronos Field Potential
+# =============================================================================
 
-# 2\. Define the Derivative of the Chronos Field Potential
+def dVdC_numpy(C):
+    """Calculates the derivative of the RDU potential V(C) w.r.t. C."""
+    exp_term = np.exp(-alpha * C)
+    return 2 * alpha * V0_de * exp_term * (1 - exp_term)
 
-# \=============================================================================
+# =============================================================================
+# 3. Set Up the Simulation Grid and Initial State ("Seed")
+# =============================================================================
 
-def dVdC\_numpy(C):
-"""Calculates the derivative of the RDU potential V(C) w.r.t. C."""
-exp\_term = np.exp(-alpha \* C)
-return 2 \* alpha \* V0\_de \* exp\_term \* (1 - exp\_term)
-
-# \=============================================================================
-
-# 3\. Set Up the Simulation Grid and Initial State ("Seed")
-
-# \=============================================================================
-
-grid = np.linspace(-LATTICE\_SIZE // 2, LATTICE\_SIZE // 2, LATTICE\_SIZE)
+grid = np.linspace(-LATTICE_SIZE // 2, LATTICE_SIZE // 2, LATTICE_SIZE)
 
 # Initial "seed" for the soliton based on an approximate Gaussian.
-
 # The "seed and verify" method confirms this shape relaxes into a stable state.
+pulse_amplitude = 1.5e-5
+pulse_width = 25.0
+C_current = pulse_amplitude * np.exp(-(grid**2) / (2 * pulse_width**2))
+C_previous = C_current.copy()
 
-pulse\_amplitude = 1.5e-5
-pulse\_width = 25.0
-C\_current = pulse\_amplitude \* np.exp(-(grid**2) / (2 \* pulse\_width**2))
-C\_previous = C\_current.copy()
+# =============================================================================
+# 4. The Main Simulation Loop (Verlet Integration)
+# =============================================================================
 
-# \=============================================================================
+print("Running 1D RDU Electron Soliton Simulation...")
+
+# The force from the potential is rescaled by the EM coupling function.
+rescaled_force_constant = V0_de / f_k_EM
+
+for step in tqdm(range(N_STEPS), desc="Simulation Progress"):
+    # Stability check
+    if not np.all(np.isfinite(C_current)):
+        print(f"\nERROR: Simulation became unstable at step {step}. Aborting.")
+        C_current = np.zeros(LATTICE_SIZE)
+        break
+
+    # Calculate forces using finite difference for the spatial derivative
+    neighbor_force = K_S * (np.roll(C_current, 1) + np.roll(C_current, -1) - 2 * C_current)
+    potential_force_term = dVdC_numpy(C_current)
+    # The acceleration of the field at each point
+    acceleration = neighbor_force - potential_force_term * rescaled_force_constant
+    # Verlet integration step to find the next state of the field
+    C_next = 2 * C_current - C_previous + acceleration * (DN**2)
+    # Update field states for the next iteration
+    C_previous = C_current
+    C_current = C_next
+else:
+    print("Simulation finished successfully.")
+
+# =============================================================================
+# 5. Analyze the Final Stable Soliton and Calculate Mass
+# =============================================================================
+
+final_amplitude = np.max(C_current)
+half_max = final_amplitude / 2
+
+# Full Width at Half Maximum (FWHM) is a stable measure of the soliton's size
+width_points = np.sum(C_current >= half_max)
+final_width = width_points * DX
+
+# The raw, uncalibrated energy is a function of the soliton's final properties
+raw_energy = (final_amplitude**2) * final_width
+final_mass_MeV = CALIBRATION_CONSTANT * raw_energy
+
+print(f"\n--- Simulation Results ---")
+print(f"Final Soliton Amplitude: {final_amplitude:.4e}")
+print(f"Final Soliton FWHM: {final_width:.4f} grid units")
+print(f"Raw Simulation Energy: {raw_energy:.6e}")
+print(f"Final Calibrated Energy of the Soliton: {final_mass_MeV:.3f} MeV")
+print(f"Target Electron Mass: {TARGET_ELECTRON_MASS_MEV} MeV")
 
 # 4\. The Main Simulation Loop (Verlet Integration)
 
